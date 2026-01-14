@@ -1,22 +1,691 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#0a1612" />
-    <meta name="description" content="MARJAN - Wake up with dhikr and barakah" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <title>MARJAN</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a1612">
+  <meta name="description" content="MARJAN - Wake up with dhikr and barakah">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>MARJAN</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-dark: #0a1612;
+      --bg-card: rgba(16, 32, 24, 0.5);
+      --emerald: #10b981;
+      --emerald-dark: #059669;
+      --text: #ffffff;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+    }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .screen { display: none; min-height: 100vh; }
+    .screen.active { display: block; }
+    .arabic { font-family: 'Amiri', serif; direction: rtl; line-height: 2; }
+
+    /* Home Screen */
+    .home-header { padding: 3rem 1.5rem 1.5rem; }
+    .home-header h1 { font-size: 1.875rem; font-weight: 300; }
+    .home-header p { color: var(--text-dim); font-size: 0.875rem; margin-top: 0.25rem; }
+    .alarm-list { padding: 0 1.5rem 6rem; display: flex; flex-direction: column; gap: 1rem; }
+    .empty-state { text-align: center; padding: 5rem 1rem; }
+    .empty-icon { width: 6rem; height: 6rem; margin: 0 auto 1.5rem; background: rgba(16, 185, 129, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .empty-icon svg { width: 3rem; height: 3rem; color: rgba(16, 185, 129, 0.5); }
+    .empty-state h2 { color: var(--text-muted); font-size: 1.25rem; font-weight: 400; }
+    .empty-state p { color: var(--text-dim); margin-top: 0.5rem; max-width: 16rem; margin-left: auto; margin-right: auto; }
+
+    /* Alarm Card */
+    .alarm-card {
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.3), rgba(6, 50, 38, 0.3));
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .alarm-card.disabled {
+      background: rgba(30, 30, 30, 0.5);
+      border-color: rgba(75, 75, 75, 0.3);
+    }
+    .alarm-card.disabled .alarm-time, .alarm-card.disabled .alarm-period { color: var(--text-dim); }
+    .alarm-info { flex: 1; cursor: pointer; }
+    .alarm-time-row { display: flex; align-items: baseline; gap: 0.5rem; }
+    .alarm-time { font-size: 2.5rem; font-weight: 300; }
+    .alarm-period { font-size: 1.125rem; color: var(--emerald); }
+    .alarm-label { color: var(--text-muted); font-size: 0.875rem; margin-top: 0.25rem; }
+    .alarm-meta { color: var(--text-dim); font-size: 0.75rem; margin-top: 0.5rem; }
+    .alarm-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .delete-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0.5rem; }
+    .delete-btn:hover { color: #ef4444; }
+    .toggle-btn {
+      width: 3.5rem; height: 2rem;
+      background: #374151;
+      border-radius: 1rem;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.3s;
+    }
+    .toggle-btn.on { background: var(--emerald); }
+    .toggle-btn::after {
+      content: '';
+      position: absolute;
+      top: 0.25rem; left: 0.25rem;
+      width: 1.5rem; height: 1.5rem;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle-btn.on::after { transform: translateX(1.5rem); }
+
+    /* FAB */
+    .fab {
+      position: fixed;
+      bottom: 2rem; right: 1.5rem;
+      width: 4rem; height: 4rem;
+      background: var(--emerald);
+      border: none;
+      border-radius: 50%;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+      transition: transform 0.2s, background 0.2s;
+    }
+    .fab:hover { background: var(--emerald-dark); transform: scale(1.1); }
+    .fab:active { transform: scale(0.95); }
+
+    /* Creator Screen */
+    .creator-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+    }
+    .creator-header button { background: none; border: none; font-size: 1rem; cursor: pointer; }
+    .cancel-btn { color: var(--text-muted); }
+    .save-btn { color: var(--emerald); font-weight: 500; }
+    .creator-content { padding: 1rem 1.5rem; }
+    .time-input {
+      font-size: 4rem;
+      font-weight: 300;
+      background: transparent;
+      border: none;
+      color: white;
+      text-align: center;
+      width: 100%;
+      outline: none;
+    }
+    .form-group { margin-top: 2rem; }
+    .form-group label { display: block; color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem; }
+    .text-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: rgba(30, 30, 30, 0.5);
+      border: 1px solid rgba(75, 75, 75, 0.5);
+      border-radius: 0.75rem;
+      color: white;
+      font-size: 1rem;
+      outline: none;
+    }
+    .text-input:focus { border-color: var(--emerald); }
+    .days-row { display: flex; justify-content: space-between; gap: 0.5rem; }
+    .day-btn {
+      width: 2.5rem; height: 2.5rem;
+      border-radius: 50%;
+      border: none;
+      background: #1f2937;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .day-btn.active { background: var(--emerald); color: white; }
+    .type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .type-btn {
+      padding: 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(75, 75, 75, 0.5);
+      background: rgba(30, 30, 30, 0.3);
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .type-btn.active { background: rgba(16, 185, 129, 0.15); border-color: var(--emerald); color: white; }
+    .type-btn .icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .type-btn .label { font-weight: 500; }
+    .type-btn .desc { font-size: 0.75rem; margin-top: 0.25rem; opacity: 0.7; }
+
+    /* Dismissal Screens */
+    .dismissal-screen {
+      min-height: 100vh;
+      background: linear-gradient(180deg, var(--bg-dark), #0d1f17, var(--bg-dark));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+    .progress-dots { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+    .progress-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #374151; }
+    .progress-dot.active { background: rgba(16, 185, 129, 0.5); width: 2rem; border-radius: 0.25rem; }
+    .progress-dot.done { background: var(--emerald); }
+    .dua-counter { color: var(--emerald); font-size: 0.875rem; margin-bottom: 1rem; }
+    .dua-arabic { font-size: 1.75rem; margin-bottom: 1.5rem; line-height: 2.2; }
+    .dua-translit { color: rgba(16, 185, 129, 0.7); font-style: italic; margin-bottom: 1rem; }
+    .dua-translation { color: var(--text-muted); max-width: 20rem; margin-bottom: 1rem; }
+    .dua-reference { color: var(--text-dim); font-size: 0.875rem; }
+    .swipe-hint { margin-top: 3rem; }
+    .swipe-circle {
+      width: 3rem; height: 3rem;
+      border: 2px solid rgba(16, 185, 129, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 0.75rem;
+    }
+    .swipe-circle svg { color: var(--emerald); }
+    .swipe-text { color: var(--text-dim); font-size: 0.875rem; }
+    .continue-btn {
+      margin-top: 2rem;
+      padding: 1rem 2rem;
+      background: var(--emerald);
+      border: none;
+      border-radius: 2rem;
+      color: white;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    /* Dhikr Counter */
+    .dhikr-arabic { font-size: 3rem; margin-bottom: 1rem; }
+    .dhikr-translit { color: rgba(16, 185, 129, 0.7); font-size: 1.25rem; font-style: italic; margin-bottom: 0.5rem; }
+    .dhikr-translation { color: var(--text-muted); margin-bottom: 2rem; }
+    .counter-ring { position: relative; width: 10rem; height: 10rem; margin: 0 auto; }
+    .counter-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .counter-ring circle { fill: none; stroke-width: 6; }
+    .counter-ring .bg { stroke: rgba(16, 185, 129, 0.15); }
+    .counter-ring .progress { stroke: var(--emerald); stroke-linecap: round; transition: stroke-dasharray 0.15s; }
+    .counter-display {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .counter-number { font-size: 3rem; font-weight: 300; }
+    .counter-total { color: var(--text-dim); font-size: 0.875rem; }
+    .tap-area {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+    }
+    .tap-hint { margin-top: 2rem; color: var(--text-muted); }
+    .tap-remaining { color: var(--text-dim); font-size: 0.875rem; margin-top: 0.5rem; }
+
+    /* Post Alarm */
+    .post-screen { text-align: center; }
+    .success-icon {
+      width: 5rem; height: 5rem;
+      background: rgba(16, 185, 129, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 2rem;
+    }
+    .success-icon svg { width: 2.5rem; height: 2.5rem; color: var(--emerald); }
+    .post-time { font-size: 3rem; font-weight: 300; margin-bottom: 0.5rem; }
+    .post-date { color: var(--text-dim); margin-bottom: 3rem; }
+    .wisdom-type { color: var(--emerald); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1.5rem; }
+    .wisdom-arabic { font-size: 1.5rem; margin-bottom: 1.5rem; }
+    .wisdom-translation { color: var(--text-muted); font-style: italic; margin-bottom: 1rem; max-width: 20rem; margin-left: auto; margin-right: auto; }
+    .wisdom-reference { color: rgba(16, 185, 129, 0.7); font-size: 0.875rem; margin-bottom: 2rem; }
+    .blessing { color: var(--text-muted); margin-bottom: 2rem; }
+    .start-btn {
+      padding: 1rem 2rem;
+      background: var(--emerald);
+      border: none;
+      border-radius: 2rem;
+      color: white;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .start-btn:hover { background: var(--emerald-dark); transform: scale(1.05); }
+  </style>
+</head>
+<body>
+  <!-- Home Screen -->
+  <div id="home-screen" class="screen active">
+    <header class="home-header">
+      <h1>MARJAN</h1>
+      <p id="greeting"></p>
+    </header>
+    <div id="alarm-list" class="alarm-list"></div>
+    <button class="fab" onclick="showCreator()">+</button>
+  </div>
+
+  <!-- Creator Screen -->
+  <div id="creator-screen" class="screen">
+    <header class="creator-header">
+      <button class="cancel-btn" onclick="hideCreator()">Cancel</button>
+      <span id="creator-title">New Alarm</span>
+      <button class="save-btn" onclick="saveAlarm()">Save</button>
+    </header>
+    <div class="creator-content">
+      <input type="time" id="alarm-time" class="time-input" value="06:00">
+      <div class="form-group">
+        <label>Label</label>
+        <input type="text" id="alarm-label" class="text-input" placeholder="e.g., Fajr Prayer">
+      </div>
+      <div class="form-group">
+        <label>Repeat</label>
+        <div class="days-row" id="days-row"></div>
+      </div>
+      <div class="form-group">
+        <label>Wake-up method</label>
+        <div class="type-grid">
+          <button class="type-btn active" data-type="dua" onclick="selectType('dua')">
+            <div class="icon">📜</div>
+            <div class="label">Morning Dua</div>
+            <div class="desc">Scroll through duas</div>
+          </button>
+          <button class="type-btn" data-type="dhikr" onclick="selectType('dhikr')">
+            <div class="icon">🤲</div>
+            <div class="label">Dhikr</div>
+            <div class="desc">Tap through count</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dua Dismissal Screen -->
+  <div id="dua-screen" class="screen">
+    <div class="dismissal-screen">
+      <div class="progress-dots" id="dua-progress"></div>
+      <div class="dua-counter" id="dua-counter"></div>
+      <p class="dua-arabic arabic" id="dua-arabic"></p>
+      <p class="dua-translit" id="dua-translit"></p>
+      <p class="dua-translation" id="dua-translation"></p>
+      <p class="dua-reference" id="dua-reference"></p>
+      <div class="swipe-hint">
+        <div class="swipe-circle">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 15l7-7 7 7"/>
+          </svg>
+        </div>
+        <p class="swipe-text" id="swipe-text">Swipe up to continue</p>
+      </div>
+      <button class="continue-btn" id="dua-continue-btn" onclick="nextDua()">Continue</button>
+    </div>
+  </div>
+
+  <!-- Dhikr Dismissal Screen -->
+  <div id="dhikr-screen" class="screen">
+    <div class="dismissal-screen">
+      <div class="progress-dots" id="dhikr-progress"></div>
+      <p class="dhikr-arabic arabic" id="dhikr-arabic"></p>
+      <p class="dhikr-translit" id="dhikr-translit"></p>
+      <p class="dhikr-translation" id="dhikr-translation"></p>
+      <div class="counter-ring">
+        <svg viewBox="0 0 160 160">
+          <circle class="bg" cx="80" cy="80" r="70"/>
+          <circle class="progress" id="dhikr-ring" cx="80" cy="80" r="70" stroke-dasharray="0 440"/>
+        </svg>
+        <div class="counter-display">
+          <span class="counter-number" id="dhikr-count">0</span>
+          <span class="counter-total" id="dhikr-total">/ 10</span>
+        </div>
+        <div class="tap-area" onclick="tapDhikr()"></div>
+      </div>
+      <p class="tap-hint" id="dhikr-hint">Tap anywhere to count</p>
+      <p class="tap-remaining" id="dhikr-remaining"></p>
+    </div>
+  </div>
+
+  <!-- Post Alarm Screen -->
+  <div id="post-screen" class="screen">
+    <div class="dismissal-screen post-screen">
+      <div class="success-icon">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <p class="post-time" id="post-time"></p>
+      <p class="post-date" id="post-date"></p>
+      <p class="wisdom-type" id="wisdom-type"></p>
+      <p class="wisdom-arabic arabic" id="wisdom-arabic"></p>
+      <p class="wisdom-translation" id="wisdom-translation"></p>
+      <p class="wisdom-reference" id="wisdom-reference"></p>
+      <p class="blessing">May Allah bless your day with barakah</p>
+      <button class="start-btn" onclick="finishAlarm()">Start Your Day</button>
+    </div>
+  </div>
+
+  <script>
+    // Data
+    const DUAS = [
+      { arabic: 'الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ', translit: "Alhamdu lillahil-ladhi ahyana ba'da ma amatana wa ilayhin-nushur", translation: 'All praise is for Allah who gave us life after having taken it from us and unto Him is the resurrection.', reference: 'Sahih al-Bukhari' },
+      { arabic: 'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ', translit: "La ilaha illallahu wahdahu la sharika lahu, lahul-mulku wa lahul-hamdu, wa huwa 'ala kulli shay'in qadir", translation: 'None has the right to be worshipped except Allah, alone, without partner. To Him belongs all sovereignty and praise, and He is over all things omnipotent.', reference: 'Sahih al-Bukhari & Muslim' },
+      { arabic: 'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ', translit: "Subhanallahi wa bihamdihi, Subhanallahil-'Adhim", translation: 'Glory is to Allah and praise is to Him. Glory is to Allah, the Magnificent.', reference: 'Sahih al-Bukhari & Muslim' },
+      { arabic: 'اللَّهُمَّ بِكَ أَصْبَحْنَا، وَبِكَ أَمْسَيْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ النُّشُورُ', translit: "Allahumma bika asbahna, wa bika amsayna, wa bika nahya, wa bika namutu, wa ilaykan-nushur", translation: 'O Allah, by You we enter the morning and by You we enter the evening, by You we live and by You we die, and to You is the resurrection.', reference: 'Sunan at-Tirmidhi' },
+      { arabic: 'اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا، وَرِزْقًا طَيِّبًا، وَعَمَلًا مُتَقَبَّلًا', translit: "Allahumma inni as'aluka 'ilman nafi'an, wa rizqan tayyiban, wa 'amalan mutaqabbalan", translation: 'O Allah, I ask You for beneficial knowledge, good provision, and deeds that are accepted.', reference: 'Sunan Ibn Majah' },
+      { arabic: 'بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ الْعَلِيمُ', translit: "Bismillahil-ladhi la yadurru ma'asmihi shay'un fil-ardi wa la fis-sama'i wa huwas-Sami'ul-'Alim", translation: 'In the Name of Allah, with Whose Name nothing on earth or in heaven can cause harm, and He is the All-Hearing, the All-Knowing.', reference: 'Sunan Abu Dawud' },
+    ];
+
+    const DHIKR = [
+      { arabic: 'سُبْحَانَ اللَّهِ', translit: 'Subhanallah', translation: 'Glory be to Allah', count: 10 },
+      { arabic: 'الْحَمْدُ لِلَّهِ', translit: 'Alhamdulillah', translation: 'All praise is due to Allah', count: 10 },
+      { arabic: 'اللَّهُ أَكْبَرُ', translit: 'Allahu Akbar', translation: 'Allah is the Greatest', count: 10 },
+    ];
+
+    const WISDOM = [
+      { arabic: 'إِنَّ مَعَ الْعُسْرِ يُسْرًا', translation: 'Indeed, with hardship comes ease.', reference: 'Quran 94:6', type: 'ayah' },
+      { arabic: 'وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ', translation: 'And whoever puts their trust in Allah, then He is sufficient for them.', reference: 'Quran 65:3', type: 'ayah' },
+      { arabic: 'فَاذْكُرُونِي أَذْكُرْكُمْ', translation: 'So remember Me; I will remember you.', reference: 'Quran 2:152', type: 'ayah' },
+      { arabic: 'أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ', translation: 'Verily, in the remembrance of Allah do hearts find rest.', reference: 'Quran 13:28', type: 'ayah' },
+      { arabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ', translation: 'Actions are but by intentions.', reference: 'Sahih al-Bukhari', type: 'hadith' },
+      { arabic: 'تَبَسُّمُكَ فِي وَجْهِ أَخِيكَ صَدَقَةٌ', translation: 'Your smile for your brother is charity.', reference: 'Sunan at-Tirmidhi', type: 'hadith' },
+      { arabic: 'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ', translation: 'The best among you is he who learns the Quran and teaches it.', reference: 'Sahih al-Bukhari', type: 'hadith' },
+      { arabic: 'الطُّهُورُ شَطْرُ الإِيمَانِ', translation: 'Cleanliness is half of faith.', reference: 'Sahih Muslim', type: 'hadith' },
+    ];
+
+    const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    // State
+    let alarms = JSON.parse(localStorage.getItem('marjan_alarms') || '[]');
+    let editingId = null;
+    let selectedDays = [1, 2, 3, 4, 5];
+    let selectedType = 'dua';
+    let currentDuas = [];
+    let currentDuaIndex = 0;
+    let currentDhikrIndex = 0;
+    let dhikrCount = 0;
+    let audioCtx = null;
+    let alarmInterval = null;
+    let lastTriggeredMinute = -1;
+
+    // Init
+    function init() {
+      updateGreeting();
+      renderAlarms();
+      renderDays();
+      startAlarmChecker();
+    }
+
+    function updateGreeting() {
+      const hour = new Date().getHours();
+      const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+      document.getElementById('greeting').textContent = greeting;
+    }
+
+    function renderAlarms() {
+      const list = document.getElementById('alarm-list');
+      if (alarms.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><h2>No alarms yet</h2><p>Create your first alarm to start waking up with dhikr and barakah</p></div>';
+        return;
+      }
+      list.innerHTML = alarms.sort((a, b) => a.time.localeCompare(b.time)).map(alarm => {
+        const [h, m] = alarm.time.split(':').map(Number);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const displayH = h % 12 || 12;
+        const daysText = alarm.days.length === 7 ? 'Every day' : alarm.days.length === 0 ? 'Once' : alarm.days.map(d => DAY_NAMES[d]).join(', ');
+        return '<div class="alarm-card ' + (alarm.enabled ? '' : 'disabled') + '"><div class="alarm-info" onclick="editAlarm(\'' + alarm.id + '\')"><div class="alarm-time-row"><span class="alarm-time">' + displayH + ':' + String(m).padStart(2, '0') + '</span><span class="alarm-period">' + period + '</span></div>' + (alarm.label ? '<p class="alarm-label">' + alarm.label + '</p>' : '') + '<p class="alarm-meta">' + daysText + ' · ' + (alarm.type === 'dua' ? 'Morning Dua' : 'Dhikr') + '</p></div><div class="alarm-actions"><button class="delete-btn" onclick="deleteAlarm(\'' + alarm.id + '\')"><svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></button><button class="toggle-btn ' + (alarm.enabled ? 'on' : '') + '" onclick="toggleAlarm(\'' + alarm.id + '\')"></button></div></div>';
+      }).join('');
+    }
+
+    function renderDays() {
+      document.getElementById('days-row').innerHTML = DAYS.map((d, i) =>
+        '<button class="day-btn ' + (selectedDays.includes(i) ? 'active' : '') + '" onclick="toggleDay(' + i + ')">' + d + '</button>'
+      ).join('');
+    }
+
+    // Screens
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function showCreator(alarm) {
+      editingId = alarm ? alarm.id : null;
+      document.getElementById('creator-title').textContent = alarm ? 'Edit Alarm' : 'New Alarm';
+      document.getElementById('alarm-time').value = alarm ? alarm.time : '06:00';
+      document.getElementById('alarm-label').value = alarm ? alarm.label : '';
+      selectedDays = alarm ? alarm.days.slice() : [1, 2, 3, 4, 5];
+      selectedType = alarm ? alarm.type : 'dua';
+      renderDays();
+      selectType(selectedType);
+      showScreen('creator-screen');
+    }
+
+    function hideCreator() {
+      editingId = null;
+      showScreen('home-screen');
+    }
+
+    function toggleDay(day) {
+      if (selectedDays.includes(day)) {
+        selectedDays = selectedDays.filter(d => d !== day);
+      } else {
+        selectedDays = selectedDays.concat(day).sort((a,b) => a-b);
+      }
+      renderDays();
+    }
+
+    function selectType(type) {
+      selectedType = type;
+      document.querySelectorAll('.type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+      });
+    }
+
+    function saveAlarm() {
+      const time = document.getElementById('alarm-time').value;
+      const label = document.getElementById('alarm-label').value;
+      if (editingId) {
+        alarms = alarms.map(a => a.id === editingId ? { id: a.id, time: time, label: label, days: selectedDays, type: selectedType, enabled: a.enabled } : a);
+      } else {
+        alarms.push({ id: Date.now().toString(), time: time, label: label, days: selectedDays, type: selectedType, enabled: true });
+      }
+      localStorage.setItem('marjan_alarms', JSON.stringify(alarms));
+      renderAlarms();
+      hideCreator();
+    }
+
+    function editAlarm(id) {
+      const alarm = alarms.find(a => a.id === id);
+      if (alarm) showCreator(alarm);
+    }
+
+    function deleteAlarm(id) {
+      alarms = alarms.filter(a => a.id !== id);
+      localStorage.setItem('marjan_alarms', JSON.stringify(alarms));
+      renderAlarms();
+    }
+
+    function toggleAlarm(id) {
+      alarms = alarms.map(a => a.id === id ? { id: a.id, time: a.time, label: a.label, days: a.days, type: a.type, enabled: !a.enabled } : a);
+      localStorage.setItem('marjan_alarms', JSON.stringify(alarms));
+      renderAlarms();
+    }
+
+    // Alarm checker
+    function startAlarmChecker() {
+      setInterval(function() {
+        const now = new Date();
+        const currentMinute = now.getHours() * 60 + now.getMinutes();
+        if (currentMinute === lastTriggeredMinute) return;
+
+        const time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        const day = now.getDay();
+        const triggered = alarms.find(a => a.enabled && a.time === time && (a.days.length === 0 || a.days.includes(day)));
+        if (triggered && !alarmInterval) {
+          lastTriggeredMinute = currentMinute;
+          triggerAlarm(triggered);
+        }
+      }, 1000);
+    }
+
+    function triggerAlarm(alarm) {
+      startAlarmSound();
+      if (alarm.type === 'dua') {
+        startDuaDismissal();
+      } else {
+        startDhikrDismissal();
+      }
+    }
+
+    // Audio
+    function startAlarmSound() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var playTone = function() {
+        [392, 440, 494, 523].forEach(function(freq, i) {
+          setTimeout(function() {
+            var osc = audioCtx.createOscillator();
+            var gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.1);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+          }, i * 150);
+        });
+      };
+      playTone();
+      alarmInterval = setInterval(playTone, 2000);
+    }
+
+    function stopAlarmSound() {
+      if (alarmInterval) {
+        clearInterval(alarmInterval);
+        alarmInterval = null;
+      }
+    }
+
+    // Dua Dismissal
+    function startDuaDismissal() {
+      currentDuas = DUAS.slice().sort(function() { return Math.random() - 0.5; }).slice(0, 4);
+      currentDuaIndex = 0;
+      renderDua();
+      showScreen('dua-screen');
+    }
+
+    function renderDua() {
+      var dua = currentDuas[currentDuaIndex];
+      document.getElementById('dua-progress').innerHTML = currentDuas.map(function(_, i) {
+        return '<div class="progress-dot ' + (i < currentDuaIndex ? 'done' : i === currentDuaIndex ? 'active' : '') + '"></div>';
+      }).join('');
+      document.getElementById('dua-counter').textContent = (currentDuaIndex + 1) + ' of ' + currentDuas.length;
+      document.getElementById('dua-arabic').textContent = dua.arabic;
+      document.getElementById('dua-translit').textContent = dua.translit;
+      document.getElementById('dua-translation').textContent = dua.translation;
+      document.getElementById('dua-reference').textContent = dua.reference;
+      document.getElementById('swipe-text').textContent = currentDuaIndex === currentDuas.length - 1 ? 'Tap to complete' : 'Tap to continue';
+    }
+
+    function nextDua() {
+      if (currentDuaIndex < currentDuas.length - 1) {
+        currentDuaIndex++;
+        renderDua();
+      } else {
+        stopAlarmSound();
+        showPostScreen();
+      }
+    }
+
+    // Dhikr Dismissal
+    function startDhikrDismissal() {
+      currentDhikrIndex = 0;
+      dhikrCount = 0;
+      renderDhikr();
+      showScreen('dhikr-screen');
+    }
+
+    function renderDhikr() {
+      var dhikr = DHIKR[currentDhikrIndex];
+      document.getElementById('dhikr-progress').innerHTML = DHIKR.map(function(_, i) {
+        return '<div class="progress-dot ' + (i < currentDhikrIndex ? 'done' : i === currentDhikrIndex ? 'active' : '') + '"></div>';
+      }).join('');
+      document.getElementById('dhikr-arabic').textContent = dhikr.arabic;
+      document.getElementById('dhikr-translit').textContent = dhikr.translit;
+      document.getElementById('dhikr-translation').textContent = dhikr.translation;
+      document.getElementById('dhikr-total').textContent = '/ ' + dhikr.count;
+      updateDhikrCount();
+    }
+
+    function updateDhikrCount() {
+      var dhikr = DHIKR[currentDhikrIndex];
+      var progress = (dhikrCount / dhikr.count) * 440;
+      document.getElementById('dhikr-count').textContent = dhikrCount;
+      document.getElementById('dhikr-ring').style.strokeDasharray = progress + ' 440';
+      var remaining = dhikr.count - dhikrCount;
+      document.getElementById('dhikr-remaining').textContent = remaining > 0 ? remaining + ' remaining' : '';
+      document.getElementById('dhikr-hint').textContent = dhikrCount >= dhikr.count
+        ? (currentDhikrIndex === DHIKR.length - 1 ? 'Tap to finish' : 'Tap to continue')
+        : 'Tap anywhere to count';
+    }
+
+    function tapDhikr() {
+      var dhikr = DHIKR[currentDhikrIndex];
+      if (dhikrCount < dhikr.count) {
+        dhikrCount++;
+        updateDhikrCount();
+      } else if (currentDhikrIndex < DHIKR.length - 1) {
+        currentDhikrIndex++;
+        dhikrCount = 0;
+        renderDhikr();
+      } else {
+        stopAlarmSound();
+        showPostScreen();
+      }
+    }
+
+    // Post Screen
+    function showPostScreen() {
+      var now = new Date();
+      var wisdom = WISDOM[Math.floor(Math.random() * WISDOM.length)];
+      document.getElementById('post-time').textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      document.getElementById('post-date').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      document.getElementById('wisdom-type').textContent = wisdom.type === 'ayah' ? 'Verse of the Day' : 'Hadith of the Day';
+      document.getElementById('wisdom-arabic').textContent = wisdom.arabic;
+      document.getElementById('wisdom-translation').textContent = '"' + wisdom.translation + '"';
+      document.getElementById('wisdom-reference').textContent = '— ' + wisdom.reference;
+      showScreen('post-screen');
+    }
+
+    function finishAlarm() {
+      showScreen('home-screen');
+    }
+
+    // For testing: call testAlarm('dua') or testAlarm('dhikr') in console
+    function testAlarm(type) {
+      triggerAlarm({ type: type || 'dua' });
+    }
+
+    init();
+  </script>
+</body>
 </html>
