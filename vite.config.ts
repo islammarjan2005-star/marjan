@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/marjan/',
   plugins: [
     react(),
     tailwindcss(),
@@ -19,6 +20,8 @@ export default defineConfig({
         background_color: '#0a1612',
         display: 'standalone',
         orientation: 'portrait',
+        start_url: '/marjan/',
+        scope: '/marjan/',
         icons: [
           {
             src: 'icon-192.png',
